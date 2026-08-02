@@ -28,13 +28,16 @@ func SetupRoutes(r *gin.Engine) {
 		// Dashboard
 		protected.GET("dashboard", controllers.DashboardStats)
 
-		// Patients  – Receptionist, Doctor, Admin
+		// Patients
+		// GET  – any authenticated role (Admin, Doctor, Receptionist)
+		// POST/PUT – Admin or Receptionist
+		// DELETE   – Admin only
 		patients := protected.Group("patients")
 		{
 			patients.GET("", controllers.GetPatients)
 			patients.GET(":id", controllers.GetPatient)
-			patients.POST("", controllers.CreatePatient)
-			patients.PUT(":id", controllers.UpdatePatient)
+			patients.POST("", middleware.RoleRequired("Admin", "Receptionist"), controllers.CreatePatient)
+			patients.PUT(":id", middleware.RoleRequired("Admin", "Receptionist"), controllers.UpdatePatient)
 			patients.DELETE(":id", middleware.RoleRequired("Admin"), controllers.DeletePatient)
 		}
 

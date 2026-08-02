@@ -52,12 +52,20 @@ func SetupRoutes(r *gin.Engine) {
 		}
 
 		// Appointments
+		// POST            – Admin / Receptionist only
+		// GET (list/single/by-doctor/by-patient) – any authenticated role
+		// PUT /:id/status – Admin, Receptionist, or Doctor (own only)
+		// PUT /:id/cancel – Admin, Receptionist, or Doctor (own only)
+		// DELETE          – Admin / Receptionist only
 		appts := protected.Group("appointments")
 		{
 			appts.GET("", controllers.GetAppointments)
+			appts.GET("doctor/:doctor_id", controllers.GetAppointmentsByDoctor)
+			appts.GET("patient/:patient_id", controllers.GetAppointmentsByPatient)
 			appts.GET(":id", controllers.GetAppointment)
-			appts.POST("", controllers.CreateAppointment)
-			appts.PUT(":id", controllers.UpdateAppointment)
+			appts.POST("", middleware.RoleRequired("Admin", "Receptionist"), controllers.CreateAppointment)
+			appts.PUT(":id/status", middleware.RoleRequired("Admin", "Receptionist", "Doctor"), controllers.UpdateStatus)
+			appts.PUT(":id/cancel", middleware.RoleRequired("Admin", "Receptionist", "Doctor"), controllers.CancelAppointment)
 			appts.DELETE(":id", middleware.RoleRequired("Admin", "Receptionist"), controllers.DeleteAppointment)
 		}
 

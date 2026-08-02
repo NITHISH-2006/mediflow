@@ -43,10 +43,6 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// ── Health check ──────────────────────────────────────────────────────────
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "MediFlow API"})
-	})
 
 	// ── API routes ────────────────────────────────────────────────────────────
 	routes.SetupRoutes(r)

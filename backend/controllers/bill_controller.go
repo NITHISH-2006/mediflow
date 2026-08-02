@@ -10,24 +10,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BillInput is the request body for creating/updating a bill.
+// BillInput is the request body for creating a bill.
 type BillInput struct {
 	PatientID     uint              `json:"patient_id" binding:"required"`
 	AppointmentID uint              `json:"appointment_id" binding:"required"`
 	Amount        float64           `json:"amount" binding:"required,min=0"`
-	Status        models.BillStatus `json:"status"`
+	Status        models.BillStatus `json:"status" binding:"omitempty,oneof=Pending Paid"`
 	PaymentMethod string            `json:"payment_method"`
 }
 
-// GetBills lists all bills.
-// GET /api/bills
-func GetBills(c *gin.Context) {
-	var bills []models.Bill
-	config.DB.Preload("Patient").Preload("Appointment").Order("created_at desc").Find(&bills)
-	utils.RespondSuccess(c, http.StatusOK, bills)
+// BillStatusUpdateInput is the request body for updating status only.
+type BillStatusUpdateInput struct {
+	Status        models.BillStatus `json:"status" binding:"required,oneof=Pending Paid"`
+	PaymentMethod string            `json:"payment_method"`
 }
 
-// GetBill returns a single bill.
+// GetBills lists all bills with optional pagination.
+// GET /api/bills
+func GetBills(c *gin.Context) {
+	page, limit := parsePage(c)
+	offset := (page - 1) * limit
+
+	var total int64
+	config.DB.Model(&models.Bill{}).Count(&total)
+
+	var bills []models.Bill
+	config.DB.Preload("Patient").Preload("Appointment").
+		Order("created_at desc").Limit(limit).Offset(offset).Find(&bills)
+
+	utils.RespondSuccess(c, http.StatusOK, gin.H{
+		"data":        bills,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": (int(total) + limit - 1) / limit,
+	})
+}
+
+// GetBill returns a single bill by ID.
 // GET /api/bills/:id
 func GetBill(c *gin.Context) {
 	var bill models.Bill
@@ -39,11 +59,31 @@ func GetBill(c *gin.Context) {
 }
 
 // CreateBill creates a new bill.
-// POST /api/bills
+// POST /api/bills (Receptionist/Admin only)
 func CreateBill(c *gin.Context) {
 	var input BillInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.RespondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 1. Verify Patient exists
+	var patient models.Patient
+	if err := config.DB.First(&patient, input.PatientID).Error; err != nil {
+		utils.RespondError(c, http.StatusBadRequest, "Patient not found")
+		return
+	}
+
+	// 2. Verify Appointment exists
+	var appt models.Appointment
+	if err := config.DB.First(&appt, input.AppointmentID).Error; err != nil {
+		utils.RespondError(c, http.StatusBadRequest, "Appointment not found")
+		return
+	}
+
+	// 3. Verify Appointment belongs to the Patient
+	if appt.PatientID != input.PatientID {
+		utils.RespondError(c, http.StatusBadRequest, "Appointment does not belong to this patient")
 		return
 	}
 
@@ -65,34 +105,75 @@ func CreateBill(c *gin.Context) {
 		return
 	}
 
+	// Return preloaded bill
+	config.DB.Preload("Patient").Preload("Appointment").First(&bill, bill.ID)
 	utils.RespondSuccess(c, http.StatusCreated, bill)
 }
 
-// UpdateBill updates bill details (e.g. mark as paid).
-// PUT /api/bills/:id
-func UpdateBill(c *gin.Context) {
+// UpdateBillStatus updates payment status of a bill.
+// PUT /api/bills/:id/status (Receptionist/Admin only)
+func UpdateBillStatus(c *gin.Context) {
 	var bill models.Bill
 	if err := config.DB.First(&bill, c.Param("id")).Error; err != nil {
 		utils.RespondError(c, http.StatusNotFound, "Bill not found")
 		return
 	}
 
-	var input BillInput
+	var input BillStatusUpdateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	config.DB.Model(&bill).Updates(map[string]interface{}{
-		"amount":         input.Amount,
-		"status":         input.Status,
-		"payment_method": input.PaymentMethod,
-	})
+	updates := map[string]interface{}{
+		"status": input.Status,
+	}
+	if input.PaymentMethod != "" {
+		updates["payment_method"] = input.PaymentMethod
+	}
 
+	if err := config.DB.Model(&bill).Updates(updates).Error; err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, "Failed to update bill status")
+		return
+	}
+
+	config.DB.Preload("Patient").Preload("Appointment").First(&bill, bill.ID)
 	utils.RespondSuccess(c, http.StatusOK, bill)
 }
 
-// DeleteBill removes a bill record.
+// GetBillsByPatient lists bills for a specific patient.
+// GET /api/bills/patient/:patient_id
+func GetBillsByPatient(c *gin.Context) {
+	patientID := c.Param("patient_id")
+
+	// Verify Patient exists
+	var patient models.Patient
+	if err := config.DB.First(&patient, patientID).Error; err != nil {
+		utils.RespondError(c, http.StatusNotFound, "Patient not found")
+		return
+	}
+
+	page, limit := parsePage(c)
+	offset := (page - 1) * limit
+
+	var total int64
+	config.DB.Model(&models.Bill{}).Where("patient_id = ?", patientID).Count(&total)
+
+	var bills []models.Bill
+	config.DB.Preload("Patient").Preload("Appointment").
+		Where("patient_id = ?", patientID).
+		Order("created_at desc").Limit(limit).Offset(offset).Find(&bills)
+
+	utils.RespondSuccess(c, http.StatusOK, gin.H{
+		"data":        bills,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": (int(total) + limit - 1) / limit,
+	})
+}
+
+// DeleteBill removes a bill record (Admin only).
 // DELETE /api/bills/:id
 func DeleteBill(c *gin.Context) {
 	var bill models.Bill
@@ -101,6 +182,10 @@ func DeleteBill(c *gin.Context) {
 		return
 	}
 
-	config.DB.Delete(&bill)
-	utils.RespondSuccess(c, http.StatusOK, gin.H{"message": "Bill deleted"})
+	if err := config.DB.Delete(&bill).Error; err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, "Failed to delete bill")
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, gin.H{"message": "Bill deleted successfully", "id": bill.ID})
 }

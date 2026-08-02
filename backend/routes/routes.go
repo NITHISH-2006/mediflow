@@ -69,24 +69,35 @@ func SetupRoutes(r *gin.Engine) {
 			appts.DELETE(":id", middleware.RoleRequired("Admin", "Receptionist"), controllers.DeleteAppointment)
 		}
 
-		// EMR Notes – Doctor and Admin
+		// EMR Notes
+		// POST /api/emr          → Create EMR note (Doctor only)
+		// GET  /api/emr/patient/:patient_id → Get all notes of a patient
+		// GET  /api/emr/appointment/:appointment_id → Get note of an appointment
+		// GET  /api/emr/:id      → Get single note
 		emr := protected.Group("emr")
 		{
 			emr.GET("", controllers.GetEMRNotes)
 			emr.GET("patient/:patient_id", controllers.GetEMRNotesByPatient)
+			emr.GET("appointment/:appointment_id", controllers.GetEMRNoteByAppointment)
 			emr.GET(":id", controllers.GetEMRNote)
-			emr.POST("", middleware.RoleRequired("Admin", "Doctor"), controllers.CreateEMRNote)
-			emr.PUT(":id", middleware.RoleRequired("Admin", "Doctor"), controllers.UpdateEMRNote)
+			emr.POST("", middleware.RoleRequired("Doctor"), controllers.CreateEMRNote)
+			emr.PUT(":id", middleware.RoleRequired("Doctor"), controllers.UpdateEMRNote)
 			emr.DELETE(":id", middleware.RoleRequired("Admin"), controllers.DeleteEMRNote)
 		}
 
 		// Billing
+		// POST /api/bills                    → Create bill (Receptionist / Admin)
+		// GET  /api/bills                    → List all bills
+		// GET  /api/bills/:id                → Get single bill
+		// PUT  /api/bills/:id/status         → Update status (Receptionist / Admin)
+		// GET  /api/bills/patient/:patient_id → Bills of a patient
 		bills := protected.Group("bills")
 		{
 			bills.GET("", controllers.GetBills)
+			bills.GET("patient/:patient_id", controllers.GetBillsByPatient)
 			bills.GET(":id", controllers.GetBill)
 			bills.POST("", middleware.RoleRequired("Admin", "Receptionist"), controllers.CreateBill)
-			bills.PUT(":id", middleware.RoleRequired("Admin", "Receptionist"), controllers.UpdateBill)
+			bills.PUT(":id/status", middleware.RoleRequired("Admin", "Receptionist"), controllers.UpdateBillStatus)
 			bills.DELETE(":id", middleware.RoleRequired("Admin"), controllers.DeleteBill)
 		}
 	}

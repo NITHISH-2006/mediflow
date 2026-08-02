@@ -36,6 +36,13 @@ func ConnectDB() {
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
+		log.Println("⚠️  Database Connection Diagnostics:")
+		log.Printf("   - DATABASE_URL present: %v", os.Getenv("DATABASE_URL") != "")
+		log.Printf("   - INTERNAL_DB_URL present: %v", os.Getenv("INTERNAL_DB_URL") != "")
+		log.Printf("   - DB_HOST: %q", os.Getenv("DB_HOST"))
+		log.Printf("   - DB_PORT: %q", os.Getenv("DB_PORT"))
+		log.Printf("   - DB_USER: %q", os.Getenv("DB_USER"))
+		log.Printf("   - DB_NAME: %q", os.Getenv("DB_NAME"))
 		log.Fatalf("❌  Failed to connect to database: %v", err)
 	}
 

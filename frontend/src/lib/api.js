@@ -2,7 +2,7 @@ import axios from 'axios';
 
 let rawBaseURL = import.meta.env.VITE_API_BASE_URL;
 
-if (!rawBaseURL || rawBaseURL.includes('${') || rawBaseURL.toLowerCase().includes('backend_host')) {
+if (!rawBaseURL || typeof rawBaseURL !== 'string' || rawBaseURL.includes('$') || rawBaseURL.toLowerCase().includes('backend')) {
   rawBaseURL = 'https://mediflow-backend-tmug.onrender.com/api';
 }
 

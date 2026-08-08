@@ -24,11 +24,13 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
-      - key: VITE_API_BASE_URL
+      - key: BACKEND_HOST
         fromService:
           type: web
           name: mediflow-backend
-          property: url
+          property: host
+      - key: VITE_API_BASE_URL
+        value: https://${BACKEND_HOST}/api
     routes:
       - type: rewrite
         source: /*

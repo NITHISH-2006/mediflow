@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import ParticleBg from '../components/ui/ParticleBg';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -44,8 +45,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(31,158,163,0.2),_transparent_45%)] px-4 py-8">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-soft backdrop-blur">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-8">
+      <ParticleBg />
+      <div className="absolute inset-0 bg-gradient-radial from-cyan-950/40 via-slate-950/80 to-slate-950 z-[1] pointer-events-none" />
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-soft backdrop-blur">
         <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
           {/* Left Hero Panel */}
           <div className="hidden bg-gradient-to-br from-brand-700 via-brand-600 to-slate-800 p-8 lg:flex lg:flex-col lg:justify-between">

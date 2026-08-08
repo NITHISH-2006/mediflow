@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Plus, Search, CheckCircle2, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CalendarDays, Plus, Search, CheckCircle2, XCircle, Clock, User, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { unwrap } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
 
 const emptyForm = { patient_id: '', doctor_id: '', date: '', time: '', reason: '' };
 
@@ -50,7 +51,7 @@ export default function AppointmentsPage() {
     setSubmitting(true);
     try {
       await api.post('/appointments', { ...form, patient_id: Number(form.patient_id), doctor_id: Number(form.doctor_id) });
-      toast.success('Appointment booked');
+      toast.success('Appointment booked successfully');
       setForm(emptyForm);
       await loadData();
     } catch (error) {
@@ -80,107 +81,190 @@ export default function AppointmentsPage() {
     }
   };
 
-  const badgeClass = (status) => {
-    switch (status) {
-      case 'Completed': return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300';
-      case 'Cancelled': return 'border-rose-500/20 bg-rose-500/10 text-rose-300';
-      case 'Scheduled': return 'border-brand-500/20 bg-brand-500/10 text-brand-200';
-      default: return 'border-slate-500/20 bg-slate-500/10 text-slate-300';
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 glass-card p-6 rounded-3xl border border-white/10">
         <div>
-          <p className="text-sm uppercase tracking-[0.25em] text-brand-300">Appointments</p>
-          <h2 className="text-2xl font-semibold text-white">Book and manage care visits</h2>
+          <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold uppercase tracking-wider">
+            <CalendarDays size={16} /> Scheduling Desk
+          </div>
+          <h2 className="text-2xl font-bold text-white tracking-tight mt-1">Care Consultations & Visits</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Manage patient bookings, consultation statuses, and doctor schedules.</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">Role-aware scheduling</div>
+
+        <div className="glass-pill px-4 py-2 rounded-2xl text-xs font-semibold text-cyan-300 border border-cyan-500/30">
+          Scheduled Appointments: <span className="text-white font-bold">{appointments.length}</span>
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-soft">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+        {/* Appointments List Column */}
+        <div className="glass-card p-6 sm:p-7 rounded-3xl border border-white/10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div>
-              <p className="text-sm text-slate-400">Appointment queue</p>
-              <h3 className="text-xl font-semibold text-white">Current appointments</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">Care Queue</p>
+              <h3 className="text-xl font-bold text-white">Consultation Timeline</h3>
             </div>
-            <div className="rounded-2xl bg-slate-800/70 p-2">
-              <CalendarDays size={18} />
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 glass-pill p-1 rounded-2xl text-xs">
+              {['', 'Scheduled', 'Completed', 'Cancelled'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`rounded-xl px-3 py-1.5 font-medium transition ${
+                    statusFilter === st ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {st || 'All'}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-800/60 p-2">
-            <Search size={16} className="ml-2 text-slate-400" />
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full rounded-xl border border-transparent bg-transparent px-2 py-2 text-slate-100 outline-none">
-              <option value="">All statuses</option>
-              <option value="Scheduled">Scheduled</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div className="mt-6 space-y-3">
-            {loading ? <div className="text-sm text-slate-400">Loading appointments…</div> : appointments.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-slate-400">No appointments available.</div> : appointments.map((appointment) => (
-              <div key={appointment.id} className="rounded-2xl border border-white/10 bg-slate-800/60 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-white">{appointment.patient?.name || 'Patient'}</p>
-                    <p className="text-sm text-slate-400">{appointment.doctor?.name || 'Doctor'} • {appointment.date} {appointment.time}</p>
-                    {appointment.reason ? <p className="mt-2 text-sm text-slate-400">Reason: {appointment.reason}</p> : null}
-                  </div>
-                  <Badge variant={appointment.status === 'Completed' ? 'success' : appointment.status === 'Cancelled' ? 'danger' : 'default'}>{appointment.status}</Badge>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button onClick={() => updateStatus(appointment.id, 'Completed')} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">Complete</button>
-                  <button onClick={() => cancelAppointment(appointment.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">Cancel</button>
-                </div>
+
+          <div className="space-y-3.5 max-h-[550px] overflow-y-auto pr-1">
+            {loading ? (
+              <div className="p-8 text-center text-sm text-slate-400">Loading appointments queue...</div>
+            ) : appointments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
+                No appointments found for the selected filter.
               </div>
-            ))}
+            ) : (
+              appointments.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="group rounded-2xl border border-white/10 bg-slate-900/80 p-4 space-y-3 hover:border-cyan-500/30 transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <User size={15} className="text-cyan-400" />
+                        <p className="font-bold text-white text-base">{appointment.patient?.name || 'Patient'}</p>
+                      </div>
+                      <p className="text-xs text-slate-400 flex items-center gap-2">
+                        <span className="flex items-center gap-1"><Stethoscope size={13} className="text-slate-500" /> Dr. {appointment.doctor?.name || 'Doctor'}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1"><Clock size={13} className="text-slate-500" /> {appointment.date} @ {appointment.time}</span>
+                      </p>
+                    </div>
+
+                    <Badge variant={appointment.status === 'Completed' ? 'success' : appointment.status === 'Cancelled' ? 'danger' : 'default'}>
+                      {appointment.status}
+                    </Badge>
+                  </div>
+
+                  {appointment.reason && (
+                    <div className="rounded-xl bg-slate-950/60 p-2.5 text-xs text-slate-300 border border-white/5">
+                      <span className="text-slate-400 font-medium">Reason:</span> {appointment.reason}
+                    </div>
+                  )}
+
+                  {appointment.status === 'Scheduled' && (
+                    <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                      <button
+                        onClick={() => updateStatus(appointment.id, 'Completed')}
+                        className="flex items-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                      >
+                        <CheckCircle2 size={13} /> Mark Completed
+                      </button>
+                      <button
+                        onClick={() => cancelAppointment(appointment.id)}
+                        className="flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition"
+                      >
+                        <XCircle size={13} /> Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-soft">
-          <div className="flex items-center justify-between">
+        {/* New Appointment Form Column */}
+        <div className="glass-card p-6 sm:p-7 rounded-3xl border border-white/10 space-y-6">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
-              <p className="text-sm text-slate-400">New booking</p>
-              <h3 className="text-xl font-semibold text-white">Book an appointment</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">New Booking</p>
+              <h3 className="text-xl font-bold text-white">Schedule Appointment</h3>
             </div>
-            <div className="rounded-2xl bg-brand-600/20 p-2 text-brand-200">
-              <Plus size={18} />
+            <div className="rounded-2xl bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/20">
+              <Plus size={20} />
             </div>
           </div>
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Patient</label>
-                <select required value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3">
-                  <option value="">Select patient</option>
-                  {patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Select Patient</label>
+                <select
+                  required
+                  value={form.patient_id}
+                  onChange={(e) => setForm({ ...form, patient_id: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                >
+                  <option value="">Choose patient...</option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.phone || 'No phone'})</option>
+                  ))}
                 </select>
               </div>
+
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Doctor</label>
-                <select required value={form.doctor_id} onChange={(e) => setForm({ ...form, doctor_id: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3">
-                  <option value="">Select doctor</option>
-                  {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Select Doctor</label>
+                <select
+                  required
+                  value={form.doctor_id}
+                  onChange={(e) => setForm({ ...form, doctor_id: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                >
+                  <option value="">Choose physician...</option>
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.specialization})</option>
+                  ))}
                 </select>
               </div>
             </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Date</label>
-                <input required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3" />
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Consultation Date</label>
+                <input
+                  required
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                />
               </div>
+
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Time</label>
-                <input required type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3" />
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Time Slot</label>
+                <input
+                  required
+                  type="time"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                />
               </div>
             </div>
+
             <div>
-              <label className="mb-2 block text-sm text-slate-300">Reason</label>
-              <textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3" />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Reason for Visit</label>
+              <textarea
+                rows={3}
+                value={form.reason}
+                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+                placeholder="e.g. Annual cardiology review..."
+              />
             </div>
-            <button type="submit" disabled={submitting} className="rounded-2xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-60">{submitting ? 'Booking…' : 'Book appointment'}</button>
+
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting ? 'Booking Visit…' : 'Book Appointment'}
+            </Button>
           </form>
         </div>
       </div>

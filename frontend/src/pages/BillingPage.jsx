@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { CreditCard, Plus } from 'lucide-react';
+import { CreditCard, Plus, DollarSign, CheckCircle2, Clock, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { unwrap } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
 
 const emptyForm = { patient_id: '', appointment_id: '', amount: '', status: 'Pending', payment_method: '' };
+
+const PAYMENT_METHODS = ['Cash', 'Credit Card', 'Debit Card', 'Insurance', 'UPI', 'Bank Transfer'];
 
 export default function BillingPage() {
   const { user } = useAuth();
@@ -14,6 +18,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('');
   const canManage = user?.role === 'Admin' || user?.role === 'Receptionist';
 
   const loadData = async () => {
@@ -28,32 +33,27 @@ export default function BillingPage() {
       setPatients(unwrap(patientsResponse)?.data || []);
       setAppointments(unwrap(appointmentsResponse)?.data || []);
     } catch (error) {
-      toast.error(error.message || 'Unable to load billing');
+      toast.error(error.message || 'Unable to load billing data');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!canManage) {
-      toast.error('Only receptionists and admins can create bills');
-      return;
-    }
+    if (!canManage) { toast.error('Only receptionists and admins can create bills'); return; }
     setSubmitting(true);
     try {
       await api.post('/bills', {
         patient_id: Number(form.patient_id),
-        appointment_id: Number(form.appointment_id),
-        amount: Number(form.amount),
+        appointment_id: form.appointment_id ? Number(form.appointment_id) : undefined,
+        amount: parseFloat(form.amount),
         status: form.status,
         payment_method: form.payment_method,
       });
-      toast.success('Bill created');
+      toast.success('Invoice created successfully');
       setForm(emptyForm);
       await loadData();
     } catch (error) {
@@ -63,98 +63,196 @@ export default function BillingPage() {
     }
   };
 
-  const updateStatus = async (id, status) => {
+  const markPaid = async (id, paymentMethod) => {
     try {
-      await api.put(`/bills/${id}/status`, { status, payment_method: 'Card' });
-      toast.success('Payment status updated');
+      await api.put(`/bills/${id}/status`, { status: 'Paid', payment_method: paymentMethod || 'Cash' });
+      toast.success('Invoice marked as Paid');
       await loadData();
     } catch (error) {
-      toast.error(error.message || 'Unable to update bill');
+      toast.error(error.message || 'Unable to update bill status');
     }
   };
 
+  const totalRevenue = bills.filter(b => b.status === 'Paid').reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  const totalPending = bills.filter(b => b.status === 'Pending').reduce((sum, b) => sum + Number(b.amount || 0), 0);
+
+  const filtered = filterStatus ? bills.filter(b => b.status === filterStatus) : bills;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm uppercase tracking-[0.25em] text-brand-300">Billing</p>
-          <h2 className="text-2xl font-semibold text-white">Patient billing and payments</h2>
+    <div className="space-y-8">
+      {/* Header with Revenue Summary */}
+      <div className="glass-card p-6 sm:p-7 rounded-3xl border border-white/10 relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold uppercase tracking-wider">
+              <CreditCard size={16} /> Finance & Billing
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight mt-1">Hospital Revenue & Invoices</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Manage patient billing, payment settlements, and financial ledgers.</p>
+          </div>
+
+          {/* Revenue KPIs */}
+          <div className="flex flex-wrap gap-3">
+            <div className="glass-pill rounded-2xl px-4 py-2.5 border border-emerald-500/30 bg-emerald-500/10">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">Collected Revenue</p>
+              <p className="text-xl font-extrabold text-white">${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="glass-pill rounded-2xl px-4 py-2.5 border border-amber-500/30 bg-amber-500/10">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">Outstanding</p>
+              <p className="text-xl font-extrabold text-white">${totalPending.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-brand-500/20 bg-brand-900/20 px-4 py-3 text-sm text-brand-100">Payment lifecycle</div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-soft">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+        {/* Bills List */}
+        <div className="glass-card p-6 sm:p-7 rounded-3xl border border-white/10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div>
-              <p className="text-sm text-slate-400">Invoices</p>
-              <h3 className="text-xl font-semibold text-white">Recent bills</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">Ledger</p>
+              <h3 className="text-xl font-bold text-white">Invoice Registry</h3>
             </div>
-            <div className="rounded-2xl bg-slate-800/70 p-2">
-              <CreditCard size={18} />
+
+            {/* Status Filter Tabs */}
+            <div className="flex items-center gap-1.5 glass-pill p-1 rounded-2xl text-xs">
+              {['', 'Pending', 'Paid'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setFilterStatus(st)}
+                  className={`rounded-xl px-3 py-1.5 font-medium transition ${
+                    filterStatus === st ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {st || 'All'} {st && `(${bills.filter(b => b.status === st).length})`}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-6 space-y-3">
-            {loading ? <div className="text-sm text-slate-400">Loading billing data…</div> : bills.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-slate-400">No bills available.</div> : bills.map((bill) => (
-              <div key={bill.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-800/60 px-4 py-3">
-                <div>
-                  <p className="font-medium text-white">{bill.patient?.name || 'Patient'}</p>
-                  <p className="text-sm text-slate-400">${bill.amount} • {bill.payment_method || 'Pending method'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`rounded-full border px-3 py-1 text-sm ${bill.status === 'Paid' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/20 bg-amber-500/10 text-amber-300'}`}>{bill.status}</div>
-                  <button onClick={() => updateStatus(bill.id, 'Paid')} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">Mark paid</button>
-                </div>
+
+          <div className="space-y-3.5 max-h-[580px] overflow-y-auto pr-1">
+            {loading ? (
+              <div className="p-8 text-center text-sm text-slate-400">Loading invoices...</div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
+                No invoices found.
               </div>
-            ))}
+            ) : (
+              filtered.map((bill) => (
+                <div
+                  key={bill.id}
+                  className="rounded-2xl border border-white/10 bg-slate-900/80 p-4 space-y-3 hover:border-cyan-500/30 transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-white text-base">{bill.patient?.name || 'Patient'}</p>
+                      <p className="text-xs text-slate-400">
+                        Invoice #{bill.id} {bill.payment_method && <>• <span className="text-slate-300">{bill.payment_method}</span></>}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-extrabold text-white">${Number(bill.amount || 0).toFixed(2)}</p>
+                      <Badge variant={bill.status === 'Paid' ? 'success' : 'warning'}>
+                        {bill.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {bill.status === 'Pending' && canManage && (
+                    <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                      <button
+                        onClick={() => markPaid(bill.id, 'Cash')}
+                        className="flex items-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                      >
+                        <CheckCircle2 size={13} /> Mark Paid
+                      </button>
+                      <div className="flex items-center gap-1 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300">
+                        <Clock size={13} /> Pending Settlement
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-soft">
-          <div className="flex items-center justify-between">
+        {/* New Invoice Form */}
+        <div className="glass-card p-6 sm:p-7 rounded-3xl border border-white/10 space-y-6">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
-              <p className="text-sm text-slate-400">Create invoice</p>
-              <h3 className="text-xl font-semibold text-white">Issue a new bill</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">Issue Invoice</p>
+              <h3 className="text-xl font-bold text-white">Create New Bill</h3>
             </div>
-            <div className="rounded-2xl bg-brand-600/20 p-2 text-brand-200">
-              <Plus size={18} />
+            <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-emerald-400 border border-emerald-500/20">
+              <DollarSign size={20} />
             </div>
           </div>
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Patient</label>
-                <select required value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3">
-                  <option value="">Select patient</option>
-                  {patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Appointment</label>
-                <select required value={form.appointment_id} onChange={(e) => setForm({ ...form, appointment_id: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3">
-                  <option value="">Select appointment</option>
-                  {appointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointment.patient?.name || appointment.id}</option>)}
-                </select>
-              </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Patient</label>
+              <select
+                required value={form.patient_id}
+                onChange={(e) => setForm({ ...form, patient_id: e.target.value })}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+              >
+                <option value="">Select patient...</option>
+                {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Linked Appointment</label>
+              <select
+                value={form.appointment_id}
+                onChange={(e) => setForm({ ...form, appointment_id: e.target.value })}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+              >
+                <option value="">None</option>
+                {appointments.map(a => <option key={a.id} value={a.id}>{a.date} – {a.patient?.name}</option>)}
+              </select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Amount</label>
-                <input required type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3" />
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Amount ($)</label>
+                <input
+                  required type="number" step="0.01" min="0" value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+                  placeholder="0.00"
+                />
               </div>
               <div>
-                <label className="mb-2 block text-sm text-slate-300">Status</label>
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                >
                   <option value="Pending">Pending</option>
                   <option value="Paid">Paid</option>
                 </select>
               </div>
             </div>
+
             <div>
-              <label className="mb-2 block text-sm text-slate-300">Payment method</label>
-              <input value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-slate-800/70 px-4 py-3" />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">Payment Method</label>
+              <select
+                value={form.payment_method}
+                onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:outline-none"
+              >
+                <option value="">Select method...</option>
+                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
-            <button type="submit" disabled={submitting || !canManage} className="rounded-2xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-60">{submitting ? 'Creating…' : 'Create bill'}</button>
+
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting ? 'Creating Invoice…' : 'Issue Invoice'}
+            </Button>
           </form>
         </div>
       </div>

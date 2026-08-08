@@ -43,13 +43,25 @@ export const AuthProvider = ({ children }) => {
     return { token, user: currentUser };
   };
 
+  const register = async (name, email, password, role) => {
+    const response = await api.post('/auth/register', { name, email, password, role });
+    const envelope = unwrapEnvelope(response);
+    const token = envelope?.data?.token || envelope?.token;
+    const currentUser = envelope?.data?.user || envelope?.user;
+    if (token) {
+      localStorage.setItem('mediflow_token', token);
+      setUser(currentUser);
+    }
+    return { token, user: currentUser };
+  };
+
   const logout = () => {
     localStorage.removeItem('mediflow_token');
     setUser(null);
     navigate('/login');
   };
 
-  const value = useMemo(() => ({ user, loading, login, logout, setUser }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, login, register, logout, setUser }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

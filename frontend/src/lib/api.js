@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL || 'https://mediflow-backend-tmug.onrender.com/api';
+const baseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL.replace(/\/$/, '')}/api`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://mediflow-backend-tmug.onrender.com/api',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },

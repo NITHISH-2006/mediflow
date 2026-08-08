@@ -1,0 +1,36 @@
+services:
+  # 1. Backend Web Service (Go + Gin)
+  - type: web
+    name: mediflow-backend
+    env: go
+    rootDir: backend
+    buildCommand: go build -o server main.go
+    startCommand: ./server
+    envVars:
+      - key: GIN_MODE
+        value: release
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mediflow-db
+          property: connectionString
+
+  # 2. Frontend Static Site (React + Vite)
+  - type: web
+    name: mediflow-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  # 3. PostgreSQL Database
+  - name: mediflow-db
+    databaseName: mediflow
+    user: mediflow_user
+    plan: free

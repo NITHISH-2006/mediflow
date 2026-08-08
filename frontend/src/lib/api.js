@@ -3,7 +3,7 @@ import axios from 'axios';
 let rawBaseURL = import.meta.env.VITE_API_BASE_URL;
 
 if (!rawBaseURL || rawBaseURL.includes('${') || rawBaseURL.toLowerCase().includes('backend_host')) {
-  rawBaseURL = 'https://mediflow-backend.onrender.com/api';
+  rawBaseURL = 'https://mediflow-backend-tmug.onrender.com/api';
 }
 
 const baseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL.replace(/\/$/, '')}/api`;

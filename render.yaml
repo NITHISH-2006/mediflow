@@ -25,7 +25,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://mediflow-backend.onrender.com/api
+        value: https://mediflow-backend-tmug.onrender.com/api
     routes:
       - type: rewrite
         source: /*
